@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expense Tracker</title>
+</head>
+<body>
+  <h1>จัดการค่าใช้จ่ายส่วนตัว</h1>
+
+  <h2>เพิ่มรายการ</h2>
+  <form id="expense-form">
+    <label>รายการ <input type="text" id="title" required></label>
+    <label>จำนวนเงิน <input type="number" id="amount" required></label>
+    <label>หมวดหมู่
+      <select id="category">
+        <option>อาหาร</option>
+        <option>เดินทาง</option>
+        <option>ช้อปปิ้ง</option>
+        <option>อื่นๆ</option>
+      </select>
+    </label>
+    <button type="submit">เพิ่ม</button>
+  </form>
+
+  <h2>รายการทั้งหมด</h2>
+  <table>
+    <thead>
+      <tr><th>รายการ</th><th>หมวดหมู่</th><th>จำนวนเงิน</th></tr>
+    </thead>
+    <tbody id="expense-list"></tbody>
+  </table>
+
+  <p>ยอดรวม: <span id="total">0</span> บาท</p>
+</body>
+</html>
