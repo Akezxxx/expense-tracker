@@ -9,12 +9,11 @@ const categorySelect = document.getElementById("category");
 const listBody = document.getElementById("expense-list");
 const totalSpan = document.getElementById("total");
 
-// วาดตารางและยอดรวมใหม่จากข้อมูลใน array
 function render() {
   listBody.innerHTML = "";
   let total = 0;
 
-  for (const item of expenses) {
+  expenses.forEach(function (item, index) {
     const row = document.createElement("tr");
 
     const titleCell = document.createElement("td");
@@ -26,11 +25,20 @@ function render() {
     const amountCell = document.createElement("td");
     amountCell.textContent = item.amount.toLocaleString("th-TH");
 
-    row.append(titleCell, categoryCell, amountCell);
+    const actionCell = document.createElement("td");
+    const deleteButton = document.createElement("button");
+    deleteButton.textContent = "ลบ";
+    deleteButton.addEventListener("click", function () {
+      expenses.splice(index, 1); // ลบรายการที่ตำแหน่งนี้ออกจาก array
+      render();
+    });
+    actionCell.appendChild(deleteButton);
+
+    row.append(titleCell, categoryCell, amountCell, actionCell);
     listBody.appendChild(row);
 
     total += item.amount;
-  }
+  });
 
   totalSpan.textContent = total.toLocaleString("th-TH");
 }
