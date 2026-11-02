@@ -108,3 +108,15 @@ p {
   font-weight: 600;
   text-align: right;
 }
+
+td button.edit {
+  background: #f59e0b;
+}
+
+td button.edit:hover {
+  background: #d97706;
+}
+
+td button + button {
+  margin-left: 6px;
+}
