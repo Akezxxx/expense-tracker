@@ -10,10 +10,36 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="layout">
+    <section id="auth-view" class="auth" hidden>
+    <form id="auth-form" class="auth-card">
+      <h1>สมุดรายจ่าย</h1>
+      <h2 id="auth-title">เข้าสู่ระบบ</h2>
+
+      <label class="field">
+        <span>ชื่อผู้ใช้</span>
+        <input type="text" id="username" autocomplete="username" required>
+      </label>
+
+      <label class="field">
+        <span>รหัสผ่าน</span>
+        <input type="password" id="password" autocomplete="current-password" minlength="8" required>
+      </label>
+
+      <p id="auth-hint" class="hint" hidden>ชื่อผู้ใช้ 3-20 ตัว ใช้ a-z, 0-9 และ _ ส่วนรหัสผ่านอย่างน้อย 8 ตัว</p>
+      <p id="auth-error" class="auth-error" role="alert"></p>
+
+      <button type="submit" id="auth-submit" class="primary">เข้าสู่ระบบ</button>
+      <button type="button" id="auth-switch" class="link-light">ยังไม่มีบัญชี? สมัครสมาชิก</button>
+    </form>
+  </section>
+  <main class="layout" id="app-view" hidden>
     <section class="panel">
       <h1>สมุดรายจ่าย</h1>
       <p class="lead">จดทุกบาทที่จ่ายไป แล้วดูว่าเงินหมดไปกับอะไรบ้าง</p>
+        <p class="userbar">
+        <span>ผู้ใช้: <strong id="user-name"></strong></span>
+        <button type="button" id="logout-button" class="link-light">ออกจากระบบ</button>
+      </p>
 
       <form id="expense-form" class="entry">
         <h2 id="form-title">จดรายการใหม่</h2>

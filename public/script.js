@@ -35,13 +35,14 @@ function showToast(message, isError = false) {
 }
 
 function showError(message, error) {
+  if (error && error.message === "unauthorized") return; // กลับไปหน้าล็อกอินอยู่แล้ว
   console.error(message, error);
   showToast(message, true);
 }
 
 async function loadExpenses() {
   try {
-    const response = await fetch(API_URL);
+    const response = await apiFetch(API_URL);
     if (!response.ok) throw new Error("สถานะ " + response.status);
     expenses = await response.json();
     render();
@@ -78,7 +79,7 @@ function resetEditing() {
 
 async function deleteExpense(id) {
   try {
-    const response = await fetch(API_URL + "/" + id, { method: "DELETE" });
+    const response = await apiFetch(API_URL + "/" + id, { method: "DELETE" });
     if (!response.ok) throw new Error("สถานะ " + response.status);
     if (editingId === id) resetEditing();
     await loadExpenses();
@@ -197,7 +198,7 @@ form.addEventListener("submit", async function (event) {
   const url = isEditing ? API_URL + "/" + editingId : API_URL;
 
   try {
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
       method: isEditing ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -219,4 +220,119 @@ cancelButton.addEventListener("click", function () {
   render();
 });
 
-loadExpenses();
+// ---------- ล็อกอิน / สมัครสมาชิก ----------
+const authView = document.getElementById("auth-view");
+const appView = document.getElementById("app-view");
+const authForm = document.getElementById("auth-form");
+const authTitle = document.getElementById("auth-title");
+const authHint = document.getElementById("auth-hint");
+const authError = document.getElementById("auth-error");
+const authSubmit = document.getElementById("auth-submit");
+const authSwitch = document.getElementById("auth-switch");
+const usernameInput = document.getElementById("username");
+const passwordInput = document.getElementById("password");
+const userNameEl = document.getElementById("user-name");
+const logoutButton = document.getElementById("logout-button");
+
+let authMode = "login"; // "login" หรือ "register"
+
+// เรียก API แล้วถ้าเซิร์ฟเวอร์บอกว่ายังไม่ได้ล็อกอิน ให้กลับไปหน้าล็อกอิน
+async function apiFetch(url, options) {
+  const response = await window.fetch(url, options);
+  if (response.status === 401) {
+    showAuth();
+    throw new Error("unauthorized");
+  }
+  return response;
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const isLogin = mode === "login";
+  authTitle.textContent = isLogin ? "เข้าสู่ระบบ" : "สมัครสมาชิก";
+  authSubmit.textContent = isLogin ? "เข้าสู่ระบบ" : "สมัครสมาชิก";
+  authSwitch.textContent = isLogin
+    ? "ยังไม่มีบัญชี? สมัครสมาชิก"
+    : "มีบัญชีแล้ว? เข้าสู่ระบบ";
+  passwordInput.autocomplete = isLogin ? "current-password" : "new-password";
+  authHint.hidden = isLogin;
+  authError.textContent = "";
+}
+
+function showAuth() {
+  expenses = [];
+  resetEditing();
+  appView.hidden = true;
+  authView.hidden = false;
+  usernameInput.focus();
+}
+
+function showApp(username) {
+  authView.hidden = true;
+  appView.hidden = false;
+  userNameEl.textContent = username;
+  loadExpenses();
+}
+
+authSwitch.addEventListener("click", function () {
+  setAuthMode(authMode === "login" ? "register" : "login");
+});
+
+authForm.addEventListener("submit", async function (event) {
+  event.preventDefault();
+  authError.textContent = "";
+
+  const url = authMode === "login" ? "/api/login" : "/api/register";
+  try {
+    const response = await window.fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: usernameInput.value.trim(),
+        password: passwordInput.value,
+      }),
+    });
+    const result = await response.json().catch(function () { return {}; });
+
+    if (!response.ok) {
+      authError.textContent = result.error || "เข้าสู่ระบบไม่สำเร็จ";
+      return;
+    }
+
+    const wasRegister = authMode === "register";
+    authForm.reset();
+    setAuthMode("login");
+    showApp(result.username);
+    showToast(wasRegister ? "สมัครสมาชิกแล้ว" : "เข้าสู่ระบบแล้ว");
+  } catch (error) {
+    authError.textContent = "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจว่ารัน node server.js อยู่";
+  }
+});
+
+logoutButton.addEventListener("click", async function () {
+  try {
+    await window.fetch("/api/logout", { method: "POST" });
+  } catch (error) {
+    console.error(error);
+  }
+  showAuth();
+  showToast("ออกจากระบบแล้ว");
+});
+
+// ตอนเปิดหน้า เช็กว่าเคยล็อกอินค้างไว้ไหม
+async function checkSession() {
+  try {
+    const response = await window.fetch("/api/me");
+    if (response.ok) {
+      const me = await response.json();
+      showApp(me.username);
+    } else {
+      showAuth();
+    }
+  } catch (error) {
+    showAuth();
+    authError.textContent = "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจว่ารัน node server.js อยู่";
+  }
+}
+
+checkSession();
