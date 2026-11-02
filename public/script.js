@@ -1,25 +1,44 @@
 const API_URL = "/api/expenses";
 
 const form = document.getElementById("expense-form");
+const formTitle = document.getElementById("form-title");
 const titleInput = document.getElementById("title");
 const amountInput = document.getElementById("amount");
-const categorySelect = document.getElementById("category");
-const listBody = document.getElementById("expense-list");
-const totalSpan = document.getElementById("total");
-const submitButton = form.querySelector('button[type="submit"]');
+const submitButton = document.getElementById("submit-button");
+const cancelButton = document.getElementById("cancel-button");
+const listEl = document.getElementById("expense-list");
+const totalEl = document.getElementById("total");
+const countEl = document.getElementById("count");
+const emptyEl = document.getElementById("empty");
+const breakdownEl = document.getElementById("breakdown");
+const shareEl = document.getElementById("share");
+const legendEl = document.getElementById("legend");
+const toastEl = document.getElementById("toast");
 
-// รายการที่โหลดมาจากเซิร์ฟเวอร์ (แต่ละรายการมี id จากฐานข้อมูล)
 let expenses = [];
+let editingId = null;   // id ของรายการที่กำลังแก้ไข (null = ไม่ได้แก้)
+let highlightId = null; // id ของรายการที่เพิ่งเพิ่ม/แก้ (ไว้ทำแอนิเมชัน)
+let toastTimer = null;
 
-// id ของรายการที่กำลังแก้ไข (null = ไม่ได้แก้ไขอะไรอยู่)
-let editingId = null;
+function formatBaht(value) {
+  return value.toLocaleString("th-TH", { maximumFractionDigits: 2 });
+}
+
+function showToast(message, isError = false) {
+  toastEl.textContent = message;
+  toastEl.classList.toggle("is-error", isError);
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () {
+    toastEl.classList.remove("show");
+  }, isError ? 4000 : 2000);
+}
 
 function showError(message, error) {
   console.error(message, error);
-  alert(message);
+  showToast(message, true);
 }
 
-// ขอรายการทั้งหมดจากเซิร์ฟเวอร์ แล้ววาดตาราง
 async function loadExpenses() {
   try {
     const response = await fetch(API_URL);
@@ -27,26 +46,33 @@ async function loadExpenses() {
     expenses = await response.json();
     render();
   } catch (error) {
-    showError("โหลดข้อมูลไม่สำเร็จ ตรวจสอบว่ารัน node server.js อยู่", error);
+    showError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจว่ารัน node server.js อยู่", error);
   }
 }
 
 function startEdit(id) {
-  const item = expenses.find(function (e) {
-    return e.id === id;
-  });
+  const item = expenses.find(function (e) { return e.id === id; });
   if (!item) return;
+
   titleInput.value = item.title;
   amountInput.value = item.amount;
-  categorySelect.value = item.category;
+  form.elements.category.value = item.category;
+
   editingId = id;
-  submitButton.textContent = "บันทึก";
+  formTitle.textContent = "แก้ไขรายการ";
+  submitButton.textContent = "บันทึกการแก้ไข";
+  cancelButton.hidden = false;
+
+  render();
+  form.scrollIntoView({ block: "center" });
   titleInput.focus();
 }
 
 function resetEditing() {
   editingId = null;
-  submitButton.textContent = "เพิ่ม";
+  formTitle.textContent = "จดรายการใหม่";
+  submitButton.textContent = "เพิ่มรายการ";
+  cancelButton.hidden = true;
   form.reset();
 }
 
@@ -56,79 +82,141 @@ async function deleteExpense(id) {
     if (!response.ok) throw new Error("สถานะ " + response.status);
     if (editingId === id) resetEditing();
     await loadExpenses();
+    showToast("ลบรายการแล้ว");
   } catch (error) {
-    showError("ลบรายการไม่สำเร็จ", error);
+    showError("ลบรายการไม่สำเร็จ ลองอีกครั้ง", error);
   }
 }
 
+function buildItem(item) {
+  const li = document.createElement("li");
+  li.className = "item";
+  li.dataset.cat = item.category;
+  if (item.id === highlightId) li.classList.add("is-new");
+  if (item.id === editingId) li.classList.add("is-editing");
+
+  const dot = document.createElement("span");
+  dot.className = "dot";
+  dot.setAttribute("aria-hidden", "true");
+
+  const main = document.createElement("div");
+  main.className = "main";
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = item.title;
+  const cat = document.createElement("span");
+  cat.className = "cat";
+  cat.textContent = item.category;
+  main.append(name, cat);
+
+  const side = document.createElement("div");
+  side.className = "side";
+  const price = document.createElement("span");
+  price.className = "price";
+  price.textContent = "฿" + formatBaht(item.amount);
+
+  const actions = document.createElement("div");
+  actions.className = "actions";
+
+  const editButton = document.createElement("button");
+  editButton.type = "button";
+  editButton.className = "link-btn";
+  editButton.textContent = "แก้ไข";
+  editButton.setAttribute("aria-label", "แก้ไข " + item.title);
+  editButton.addEventListener("click", function () { startEdit(item.id); });
+
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "link-btn danger";
+  deleteButton.textContent = "ลบ";
+  deleteButton.setAttribute("aria-label", "ลบ " + item.title);
+  deleteButton.addEventListener("click", function () { deleteExpense(item.id); });
+
+  actions.append(editButton, deleteButton);
+  side.append(price, actions);
+  li.append(dot, main, side);
+  return li;
+}
+
+// แถบสัดส่วนรายจ่ายตามหมวด
+function renderBreakdown(byCategory, total) {
+  shareEl.innerHTML = "";
+  legendEl.innerHTML = "";
+  breakdownEl.hidden = total <= 0;
+  if (total <= 0) return;
+
+  const entries = [...byCategory.entries()]
+    .filter(function (entry) { return entry[1] > 0; })
+    .sort(function (a, b) { return b[1] - a[1]; });
+
+  entries.forEach(function (entry) {
+    const category = entry[0];
+    const value = entry[1];
+
+    const segment = document.createElement("span");
+    segment.className = "seg";
+    segment.dataset.cat = category;
+    segment.style.flex = value + " 1 0";
+    shareEl.appendChild(segment);
+
+    const legendItem = document.createElement("li");
+    legendItem.dataset.cat = category;
+    legendItem.textContent = category + " " + Math.round((value / total) * 100) + "%";
+    legendEl.appendChild(legendItem);
+  });
+}
+
 function render() {
-  listBody.innerHTML = "";
+  listEl.innerHTML = "";
   let total = 0;
+  const byCategory = new Map();
 
   expenses.forEach(function (item) {
-    const row = document.createElement("tr");
-
-    const titleCell = document.createElement("td");
-    titleCell.textContent = item.title;
-
-    const categoryCell = document.createElement("td");
-    categoryCell.textContent = item.category;
-
-    const amountCell = document.createElement("td");
-    amountCell.textContent = item.amount.toLocaleString("th-TH");
-
-    const actionCell = document.createElement("td");
-
-    const editButton = document.createElement("button");
-    editButton.textContent = "แก้ไข";
-    editButton.className = "edit";
-    editButton.addEventListener("click", function () {
-      startEdit(item.id);
-    });
-
-    const deleteButton = document.createElement("button");
-    deleteButton.textContent = "ลบ";
-    deleteButton.addEventListener("click", function () {
-      deleteExpense(item.id);
-    });
-
-    actionCell.append(editButton, deleteButton);
-
-    row.append(titleCell, categoryCell, amountCell, actionCell);
-    listBody.appendChild(row);
-
     total += item.amount;
+    byCategory.set(item.category, (byCategory.get(item.category) || 0) + item.amount);
+    listEl.appendChild(buildItem(item));
   });
 
-  totalSpan.textContent = total.toLocaleString("th-TH");
+  totalEl.textContent = formatBaht(total);
+  countEl.textContent = expenses.length === 0 ? "ยังไม่มีรายการ" : expenses.length + " รายการ";
+  emptyEl.hidden = expenses.length > 0;
+  renderBreakdown(byCategory, total);
+  highlightId = null;
 }
 
 form.addEventListener("submit", async function (event) {
   event.preventDefault();
 
   const data = {
-    title: titleInput.value,
-    category: categorySelect.value,
+    title: titleInput.value.trim(),
+    category: form.elements.category.value,
     amount: Number(amountInput.value),
   };
 
   const isEditing = editingId !== null;
   const url = isEditing ? API_URL + "/" + editingId : API_URL;
-  const method = isEditing ? "PUT" : "POST";
 
   try {
     const response = await fetch(url, {
-      method: method,
+      method: isEditing ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error("สถานะ " + response.status);
+    const saved = await response.json();
+
+    highlightId = saved.id;
     resetEditing();
     await loadExpenses();
+    showToast(isEditing ? "บันทึกการแก้ไขแล้ว" : "เพิ่มรายการแล้ว");
   } catch (error) {
-    showError("บันทึกรายการไม่สำเร็จ", error);
+    showError("บันทึกไม่สำเร็จ ตรวจข้อมูลแล้วลองอีกครั้ง", error);
   }
 });
 
-// โหลดรายการตอนเปิดหน้าเว็บ
+cancelButton.addEventListener("click", function () {
+  resetEditing();
+  render();
+});
+
 loadExpenses();

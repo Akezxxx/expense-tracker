@@ -3,36 +3,73 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Expense Tracker</title>
+  <title>สมุดรายจ่าย</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Mitr:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>จัดการค่าใช้จ่ายส่วนตัว</h1>
+  <main class="layout">
+    <section class="panel">
+      <h1>สมุดรายจ่าย</h1>
+      <p class="lead">จดทุกบาทที่จ่ายไป แล้วดูว่าเงินหมดไปกับอะไรบ้าง</p>
 
-  <h2>เพิ่มรายการ</h2>
-  <form id="expense-form">
-    <label>รายการ <input type="text" id="title" required></label>
-    <label>จำนวนเงิน <input type="number" id="amount" required></label>
-    <label>หมวดหมู่
-      <select id="category">
-        <option>อาหาร</option>
-        <option>เดินทาง</option>
-        <option>ช้อปปิ้ง</option>
-        <option>อื่นๆ</option>
-      </select>
-    </label>
-    <button type="submit">เพิ่ม</button>
-  </form>
+      <form id="expense-form" class="entry">
+        <h2 id="form-title">จดรายการใหม่</h2>
 
-  <h2>รายการทั้งหมด</h2>
-  <table>
-    <thead>
-      <tr><th>รายการ</th><th>หมวดหมู่</th><th>จำนวนเงิน</th><th></th></tr>
-    </thead>
-    <tbody id="expense-list"></tbody>
-  </table>
+        <label class="field">
+          <span>รายการ</span>
+          <input type="text" id="title" placeholder="เช่น ข้าวมันไก่" maxlength="80" autocomplete="off" required>
+        </label>
 
-  <p>ยอดรวม: <span id="total">0</span> บาท</p>
-    <script src="script.js"></script>
+        <label class="field">
+          <span>จำนวนเงิน (บาท)</span>
+          <input type="number" id="amount" placeholder="0" min="0" step="any" inputmode="decimal" required>
+        </label>
+
+        <fieldset class="field">
+          <legend>หมวดหมู่</legend>
+          <div class="chips">
+            <label class="chip" data-cat="อาหาร">
+              <input type="radio" name="category" value="อาหาร" checked><span>อาหาร</span>
+            </label>
+            <label class="chip" data-cat="เดินทาง">
+              <input type="radio" name="category" value="เดินทาง"><span>เดินทาง</span>
+            </label>
+            <label class="chip" data-cat="ช้อปปิ้ง">
+              <input type="radio" name="category" value="ช้อปปิ้ง"><span>ช้อปปิ้ง</span>
+            </label>
+            <label class="chip" data-cat="อื่นๆ">
+              <input type="radio" name="category" value="อื่นๆ"><span>อื่นๆ</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div class="buttons">
+          <button type="submit" id="submit-button" class="primary">เพิ่มรายการ</button>
+          <button type="button" id="cancel-button" class="secondary" hidden>ยกเลิก</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="receipt" aria-labelledby="receipt-title">
+      <h2 id="receipt-title" class="receipt-label">รวมทั้งสิ้น</h2>
+      <p class="total"><span class="baht">฿</span><span id="total">0</span></p>
+      <p class="count" id="count">ยังไม่มีรายการ</p>
+
+      <div class="breakdown" id="breakdown" hidden>
+        <div class="share" id="share" aria-hidden="true"></div>
+        <ul class="legend" id="legend"></ul>
+      </div>
+
+      <ul class="items" id="expense-list"></ul>
+      <p class="empty" id="empty">ยังไม่มีรายการ จดรายการแรกในฟอร์มได้เลย</p>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="script.js"></script>
 </body>
 </html>
