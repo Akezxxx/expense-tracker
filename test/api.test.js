@@ -1,5 +1,7 @@
 // ใช้ฐานข้อมูลในหน่วยความจำ ไม่แตะ expenses.db จริง (ต้องตั้งก่อน require)
 process.env.DB_PATH = ":memory:";
+process.env.REGISTER_MAX = "1000"; // เทสต์สมัครผู้ใช้หลายคน ไม่ให้ติดเพดาน
+process.env.LOGIN_MAX = "6";       // ตั้งต่ำเพื่อทดสอบการบล็อกได้เร็ว
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
@@ -306,4 +308,55 @@ test("งบประมาณที่ไม่ถูกต้องถูก�
 
   const list = await call("GET", "/api/budgets", { cookie });
   assert.deepEqual(list.json, [{ category: "อาหาร", amount: 100 }]);
+});
+// ---------- ความปลอดภัยของเซิร์ฟเวอร์ ----------
+test("ส่ง header ความปลอดภัย และไม่เปิดเผยว่าใช้ Express", async () => {
+  const page = await call("GET", "/");
+  assert.equal(page.status, 200);
+  assert.match(page.headers.get("content-security-policy"), /default-src 'self'/);
+  assert.equal(page.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(page.headers.get("x-frame-options"), "DENY");
+  assert.equal(page.headers.get("x-powered-by"), null);
+
+  const api = await call("GET", "/api/me");
+  assert.equal(api.headers.get("cache-control"), "no-store");
+});
+
+test("JSON ที่เสียหรือใหญ่เกินไปถูกปฏิเสธอย่างสุภาพ", async () => {
+  const headers = { "Content-Type": "application/json" };
+
+  const broken = await fetch(base + "/api/login", {
+    method: "POST",
+    headers,
+    body: "{bad json",
+  });
+  assert.equal(broken.status, 400);
+  assert.ok((await broken.json()).error);
+
+  const huge = await fetch(base + "/api/login", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ username: "x", password: "y".repeat(20000) }),
+  });
+  assert.equal(huge.status, 413);
+});
+
+test("ลองล็อกอินรัวๆ ถูกจำกัดจำนวนครั้ง", async () => {
+  const user = await newUser();
+
+  let blocked = null;
+  for (let i = 0; i < 12 && !blocked; i += 1) {
+    const res = await call("POST", "/api/login", {
+      body: { username: "nobody_here", password: "wrong-password" },
+    });
+    if (res.status === 429) blocked = res;
+  }
+  assert.ok(blocked, "ควรถูกบล็อกก่อนครบ 12 ครั้ง");
+  assert.ok(Number(blocked.headers.get("retry-after")) > 0);
+
+  // ถูกบล็อกแล้ว แม้ใส่รหัสที่ถูกต้องก็ต้องรอก่อน
+  const valid = await call("POST", "/api/login", {
+    body: { username: user.username, password: "password123" },
+  });
+  assert.equal(valid.status, 429);
 });

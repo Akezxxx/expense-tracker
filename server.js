@@ -140,8 +140,88 @@ function requireLogin(req, res, next) {
 
 // ---------- แอป ----------
 const app = express();
-app.use(express.json());
+app.disable("x-powered-by");
+
+// ถ้ารันหลัง proxy ของโฮสต์ ให้ตั้ง TRUST_PROXY=1 เพื่อให้ req.ip เป็น IP ของผู้ใช้จริง
+const proxyHops = Number(process.env.TRUST_PROXY);
+if (Number.isInteger(proxyHops) && proxyHops > 0) {
+  app.set("trust proxy", proxyHops);
+}
+
+// header ความปลอดภัย
+app.use((req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' https://fonts.googleapis.com",
+      "font-src https://fonts.gstatic.com",
+      "img-src 'self' data:",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join("; ")
+  );
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  if (isProduction) {
+    res.setHeader("Strict-Transport-Security", "max-age=15552000");
+  }
+  next();
+});
+
+// ข้อมูลของผู้ใช้ห้ามถูกแคช
+app.use("/api", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
+
+app.use(express.json({ limit: "10kb" }));
 app.use(express.static("public"));
+
+// จำกัดจำนวนคำขอต่อ IP ในช่วงเวลาหนึ่ง (เก็บในหน่วยความจำ รีสตาร์ตแล้วเริ่มนับใหม่)
+function rateLimit({ windowMs, max, message }) {
+  const hits = new Map();
+
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of hits) {
+      if (entry.resetAt <= now) hits.delete(key);
+    }
+  }, windowMs).unref();
+
+  return (req, res, next) => {
+    const now = Date.now();
+    let entry = hits.get(req.ip);
+    if (!entry || entry.resetAt <= now) {
+      entry = { count: 0, resetAt: now + windowMs };
+      hits.set(req.ip, entry);
+    }
+    entry.count += 1;
+
+    if (entry.count > max) {
+      res.setHeader("Retry-After", Math.ceil((entry.resetAt - now) / 1000));
+      return res.status(429).json({ error: message });
+    }
+    next();
+  };
+}
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.LOGIN_MAX) || 10,
+  message: "ลองเข้าสู่ระบบบ่อยเกินไป รอสักครู่แล้วลองใหม่",
+});
+
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: Number(process.env.REGISTER_MAX) || 10,
+  message: "สมัครสมาชิกบ่อยเกินไป รอสักครู่แล้วลองใหม่",
+});
 
 const CREDENTIAL_ERROR =
   "ชื่อผู้ใช้ 3-20 ตัว ใช้ a-z, 0-9 และ _ ส่วนรหัสผ่านอย่างน้อย 8 ตัว";
@@ -157,7 +237,7 @@ function validCredentials(body) {
   );
 }
 
-app.post("/api/register", (req, res) => {
+app.post("/api/register", registerLimiter, (req, res) => {
   if (!validCredentials(req.body)) {
     return res.status(400).json({ error: CREDENTIAL_ERROR });
   }
@@ -177,7 +257,7 @@ app.post("/api/register", (req, res) => {
   }
 });
 
-app.post("/api/login", (req, res) => {
+app.post("/api/login", loginLimiter, (req, res) => {
   const body = req.body || {};
   if (typeof body.username !== "string" || typeof body.password !== "string") {
     return res.status(400).json({ error: "กรอกชื่อผู้ใช้และรหัสผ่าน" });
@@ -393,6 +473,18 @@ app.get("/api/export", requireLogin, (req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="expenses-${month}.csv"`);
   // \uFEFF คือ BOM ทำให้ Excel อ่านภาษาไทยถูก
   res.send("\uFEFF" + lines.join("\r\n") + "\r\n");
+});
+
+// ตัวจัดการข้อผิดพลาดสุดท้าย: ไม่โชว์รายละเอียดภายในระบบให้ผู้ใช้เห็น
+app.use((err, req, res, next) => {
+  if (err.type === "entity.parse.failed") {
+    return res.status(400).json({ error: "รูปแบบข้อมูลไม่ถูกต้อง" });
+  }
+  if (err.type === "entity.too.large") {
+    return res.status(413).json({ error: "ข้อมูลใหญ่เกินไป" });
+  }
+  console.error(err);
+  res.status(500).json({ error: "เซิร์ฟเวอร์ขัดข้อง ลองอีกครั้ง" });
 });
 
 module.exports = { app };
