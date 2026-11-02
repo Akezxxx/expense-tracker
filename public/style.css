@@ -442,3 +442,101 @@ input[type="month"] {
   color: var(--muted);
   font-size: 0.875rem;
 }
+
+/* ---------- งบประมาณ ---------- */
+.budget {
+  margin: 20px 0 0;
+  padding-top: 20px;
+  border-top: 2px dashed #b9c5c1;
+}
+
+.budget h3 {
+  margin: 0 0 12px;
+  font-family: "Mitr", sans-serif;
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+.budget-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.budget-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-bar {
+  height: 10px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #dfe6e3;
+}
+
+.budget-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: var(--c);
+}
+
+.budget-item.is-warn .budget-bar span { background: #e0a100; }
+.budget-item.is-over .budget-bar span { background: var(--chili); }
+
+.budget-note { margin: 4px 0 0; color: var(--muted); font-size: 0.875rem; }
+.budget-item.is-warn .budget-note { color: #8a5a00; font-weight: 500; }
+.budget-item.is-over .budget-note { color: var(--chili); font-weight: 500; }
+
+.budget-edit { margin-top: 14px; }
+
+.budget-edit summary {
+  width: fit-content;
+  padding: 4px 0;
+  color: var(--bay);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.budget-edit form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.budget-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.875rem;
+}
+
+.budget-edit label span { display: flex; align-items: center; gap: 6px; }
+.budget-edit label span::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.budget-edit input[type="number"] {
+  padding: 8px 10px;
+  border: 1.5px solid #b9c5c1;
+  background: #fff;
+}
+
+.budget-edit .link-btn {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 6px 16px;
+  border: 1.5px solid var(--bay);
+}

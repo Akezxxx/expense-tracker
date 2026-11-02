@@ -292,6 +292,72 @@ app.delete("/api/expenses/:id", requireLogin, (req, res) => {
   res.status(204).end();
 });
 
+// ---------- งบประมาณรายหมวด (ต่อเดือน) ----------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS budgets (
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    category TEXT NOT NULL,
+    amount REAL NOT NULL,
+    PRIMARY KEY (user_id, category)
+  )
+`);
+
+const BUDGET_CATEGORIES = ["อาหาร", "เดินทาง", "ช้อปปิ้ง", "อื่นๆ"];
+
+app.get("/api/budgets", requireLogin, (req, res) => {
+  const rows = db
+    .prepare("SELECT category, amount FROM budgets WHERE user_id = ?")
+    .all(req.user.id);
+  res.json(rows);
+});
+
+app.put("/api/budgets", requireLogin, (req, res) => {
+  const incoming = req.body && req.body.budgets;
+  if (!incoming || typeof incoming !== "object") {
+    return res.status(400).json({ error: "ข้อมูลไม่ถูกต้อง" });
+  }
+
+  // ตรวจทุกค่าก่อนบันทึก
+  for (const category of BUDGET_CATEGORIES) {
+    if (!Object.hasOwn(incoming, category)) continue;
+    const value = incoming[category];
+    if (
+      typeof value !== "number" ||
+      !Number.isFinite(value) ||
+      value < 0 ||
+      value > 100000000
+    ) {
+      return res.status(400).json({ error: "งบประมาณต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป" });
+    }
+  }
+
+  db.exec("BEGIN");
+  try {
+    for (const category of BUDGET_CATEGORIES) {
+      if (!Object.hasOwn(incoming, category)) continue;
+      const value = incoming[category];
+      if (value === 0) {
+        // 0 แปลว่าไม่จำกัดงบ ลบทิ้ง
+        db.prepare("DELETE FROM budgets WHERE user_id = ? AND category = ?").run(
+          req.user.id,
+          category
+        );
+      } else {
+        db.prepare(
+          `INSERT INTO budgets (user_id, category, amount) VALUES (?, ?, ?)
+           ON CONFLICT(user_id, category) DO UPDATE SET amount = excluded.amount`
+        ).run(req.user.id, category, value);
+      }
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    console.error(error);
+    return res.status(500).json({ error: "เซิร์ฟเวอร์ขัดข้อง ลองอีกครั้ง" });
+  }
+  res.status(204).end();
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`เซิร์ฟเวอร์ทำงานที่ http://localhost:${PORT}`);

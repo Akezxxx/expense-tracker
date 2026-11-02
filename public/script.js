@@ -72,6 +72,7 @@ async function loadExpenses() {
     if (!response.ok) throw new Error("สถานะ " + response.status);
     expenses = await response.json();
     render();
+    if (window.onExpensesLoaded) window.onExpensesLoaded(expenses);
   } catch (error) {
     showError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจว่ารัน node server.js อยู่", error);
   }

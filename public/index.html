@@ -89,7 +89,7 @@
         <label for="month">เดือน</label>
         <input type="month" id="month" required>
       </div>
-      
+
       <h2 id="receipt-title" class="receipt-label">รวมทั้งสิ้น</h2>
       <p class="total"><span class="baht">฿</span><span id="total">0</span></p>
       <p class="count" id="count">ยังไม่มีรายการ</p>
@@ -97,6 +97,30 @@
       <div class="breakdown" id="breakdown" hidden>
         <div class="share" id="share" aria-hidden="true"></div>
         <ul class="legend" id="legend"></ul>
+      </div>
+      
+            <div class="budget" id="budget" hidden>
+        <h3>งบประมาณต่อเดือน</h3>
+        <ul class="budget-list" id="budget-list"></ul>
+
+        <details class="budget-edit">
+          <summary>ตั้งงบรายหมวด</summary>
+          <form id="budget-form">
+            <label data-cat="อาหาร"><span>อาหาร</span>
+              <input type="number" data-cat="อาหาร" min="0" step="any" inputmode="decimal" placeholder="ไม่จำกัด">
+            </label>
+            <label data-cat="เดินทาง"><span>เดินทาง</span>
+              <input type="number" data-cat="เดินทาง" min="0" step="any" inputmode="decimal" placeholder="ไม่จำกัด">
+            </label>
+            <label data-cat="ช้อปปิ้ง"><span>ช้อปปิ้ง</span>
+              <input type="number" data-cat="ช้อปปิ้ง" min="0" step="any" inputmode="decimal" placeholder="ไม่จำกัด">
+            </label>
+            <label data-cat="อื่นๆ"><span>อื่นๆ</span>
+              <input type="number" data-cat="อื่นๆ" min="0" step="any" inputmode="decimal" placeholder="ไม่จำกัด">
+            </label>
+            <button type="submit" class="link-btn">บันทึกงบ</button>
+          </form>
+        </details>
       </div>
 
       <ul class="items" id="expense-list"></ul>
@@ -107,5 +131,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="script.js"></script>
+  <script src="budget.js"></script>
 </body>
 </html>
