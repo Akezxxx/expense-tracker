@@ -258,6 +258,36 @@ cancelButton.addEventListener("click", function () {
 
 // ---------- ล็อกอิน / สมัครสมาชิก ----------
 monthInput.addEventListener("change", loadExpenses);
+// ---------- ส่งออก CSV ----------
+async function exportCsv() {
+  if (expenses.length === 0) {
+    showToast("เดือนนี้ยังไม่มีรายการให้ส่งออก");
+    return;
+  }
+  try {
+    const response = await apiFetch(
+      "/api/export?month=" + encodeURIComponent(monthInput.value)
+    );
+    if (!response.ok) throw new Error("สถานะ " + response.status);
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "expenses-" + monthInput.value + ".csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    showToast("ส่งออกไฟล์แล้ว");
+  } catch (error) {
+    showError("ส่งออกไฟล์ไม่สำเร็จ ลองอีกครั้ง", error);
+  }
+}
+
+document.getElementById("export-button").addEventListener("click", exportCsv);
+
 const authView = document.getElementById("auth-view");
 const appView = document.getElementById("app-view");
 const authForm = document.getElementById("auth-form");

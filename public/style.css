@@ -540,3 +540,9 @@ input[type="month"] {
   padding: 6px 16px;
   border: 1.5px solid var(--bay);
 }
+
+.month-bar .link-btn {
+  margin-left: auto;
+  padding: 6px 14px;
+  border: 1.5px solid var(--bay);
+}

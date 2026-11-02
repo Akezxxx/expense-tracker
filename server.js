@@ -357,6 +357,43 @@ app.put("/api/budgets", requireLogin, (req, res) => {
   }
   res.status(204).end();
 });
+// ---------- ส่งออกเป็น CSV ----------
+function csvText(value) {
+  let text = String(value ?? "");
+  // กัน CSV injection: ข้อความที่ขึ้นต้นด้วยตัวที่ Excel/Sheets ตีเป็นสูตร ให้นำหน้าด้วย '
+  if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+app.get("/api/export", requireLogin, (req, res) => {
+  const month = String(req.query.month);
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+    return res.status(400).json({ error: "เดือนไม่ถูกต้อง" });
+  }
+
+  const rows = db
+    .prepare(
+      `SELECT title, category, amount, spent_on AS date
+       FROM expenses
+       WHERE user_id = ? AND substr(spent_on, 1, 7) = ?
+       ORDER BY spent_on, id`
+    )
+    .all(req.user.id, month);
+
+  const lines = [
+    ["วันที่", "รายการ", "หมวดหมู่", "จำนวนเงิน (บาท)"].map(csvText).join(","),
+  ];
+  rows.forEach((row) => {
+    lines.push(
+      [csvText(row.date), csvText(row.title), csvText(row.category), String(row.amount)].join(",")
+    );
+  });
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="expenses-${month}.csv"`);
+  // \uFEFF คือ BOM ทำให้ Excel อ่านภาษาไทยถูก
+  res.send("\uFEFF" + lines.join("\r\n") + "\r\n");
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
