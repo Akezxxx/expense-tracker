@@ -54,6 +54,11 @@
           <input type="number" id="amount" placeholder="0" min="0" step="any" inputmode="decimal" required>
         </label>
 
+        <label class="field">
+          <span>วันที่</span>
+          <input type="date" id="date" required>
+        </label>
+
         <fieldset class="field">
           <legend>หมวดหมู่</legend>
           <div class="chips">
@@ -80,6 +85,11 @@
     </section>
 
     <section class="receipt" aria-labelledby="receipt-title">
+      <div class="month-bar">
+        <label for="month">เดือน</label>
+        <input type="month" id="month" required>
+      </div>
+      
       <h2 id="receipt-title" class="receipt-label">รวมทั้งสิ้น</h2>
       <p class="total"><span class="baht">฿</span><span id="total">0</span></p>
       <p class="count" id="count">ยังไม่มีรายการ</p>

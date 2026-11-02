@@ -30,6 +30,22 @@ if (!expenseColumns.some((column) => column.name === "user_id")) {
   console.error("พบฐานข้อมูลแบบเก่า ให้เปลี่ยนชื่อไฟล์ expenses.db แล้วรันใหม่");
   process.exit(1);
 }
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
+
+function todayString() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// เพิ่มคอลัมน์วันที่ให้ฐานข้อมูลเดิม (รายการเก่าได้วันนี้เป็นค่าเริ่มต้น)
+if (!expenseColumns.some((column) => column.name === "spent_on")) {
+  db.exec("ALTER TABLE expenses ADD COLUMN spent_on TEXT");
+  db.prepare("UPDATE expenses SET spent_on = ? WHERE spent_on IS NULL").run(
+    todayString()
+  );
+}
 
 // ลบบัตรผ่านที่หมดอายุทิ้งตอนเริ่มเซิร์ฟเวอร์
 db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(Date.now());
@@ -196,21 +212,42 @@ app.get("/api/me", requireLogin, (req, res) => {
 });
 
 // ---------- รายการค่าใช้จ่าย (เห็นเฉพาะของตัวเอง) ----------
+function isValidDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const [y, m, d] = value.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return (
+    date.getFullYear() === y &&
+    date.getMonth() === m - 1 &&
+    date.getDate() === d
+  );
+}
+
 function isValid(body) {
   return (
     body &&
     typeof body.title === "string" && body.title.trim() !== "" &&
     typeof body.category === "string" && body.category.trim() !== "" &&
-    typeof body.amount === "number" && Number.isFinite(body.amount)
+    typeof body.amount === "number" && Number.isFinite(body.amount) &&
+    isValidDate(body.date)
   );
 }
 
 app.get("/api/expenses", requireLogin, (req, res) => {
+  const month = req.query.month;
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(month))) {
+    return res.status(400).json({ error: "เดือนไม่ถูกต้อง" });
+  }
   const rows = db
     .prepare(
-      "SELECT id, title, category, amount FROM expenses WHERE user_id = ? ORDER BY id"
+      `SELECT id, title, category, amount, spent_on AS date
+       FROM expenses
+       WHERE user_id = ? AND substr(spent_on, 1, 7) = ?
+       ORDER BY spent_on, id`
     )
-    .all(req.user.id);
+    .all(req.user.id, month);
   res.json(rows);
 });
 
@@ -218,31 +255,31 @@ app.post("/api/expenses", requireLogin, (req, res) => {
   if (!isValid(req.body)) {
     return res.status(400).json({ error: "ข้อมูลไม่ถูกต้อง" });
   }
-  const { title, category, amount } = req.body;
+  const { title, category, amount, date } = req.body;
   const result = db
     .prepare(
-      "INSERT INTO expenses (user_id, title, category, amount) VALUES (?, ?, ?, ?)"
+      "INSERT INTO expenses (user_id, title, category, amount, spent_on) VALUES (?, ?, ?, ?, ?)"
     )
-    .run(req.user.id, title, category, amount);
+    .run(req.user.id, title, category, amount, date);
   res
     .status(201)
-    .json({ id: Number(result.lastInsertRowid), title, category, amount });
+    .json({ id: Number(result.lastInsertRowid), title, category, amount, date });
 });
 
 app.put("/api/expenses/:id", requireLogin, (req, res) => {
   if (!isValid(req.body)) {
     return res.status(400).json({ error: "ข้อมูลไม่ถูกต้อง" });
   }
-  const { title, category, amount } = req.body;
+  const { title, category, amount, date } = req.body;
   const result = db
     .prepare(
-      "UPDATE expenses SET title = ?, category = ?, amount = ? WHERE id = ? AND user_id = ?"
+      "UPDATE expenses SET title = ?, category = ?, amount = ?, spent_on = ? WHERE id = ? AND user_id = ?"
     )
-    .run(title, category, amount, req.params.id, req.user.id);
+    .run(title, category, amount, date, req.params.id, req.user.id);
   if (result.changes === 0) {
     return res.status(404).json({ error: "ไม่พบรายการ" });
   }
-  res.json({ id: Number(req.params.id), title, category, amount });
+  res.json({ id: Number(req.params.id), title, category, amount, date });
 });
 
 app.delete("/api/expenses/:id", requireLogin, (req, res) => {

@@ -409,3 +409,36 @@ input[type="password"] {
   font-size: 0.9rem;
 }
 .userbar .link-light { margin-top: 0; }
+
+input[type="date"],
+input[type="month"] {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.month-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.month-bar label { color: var(--muted); font-weight: 500; }
+.month-bar input {
+  width: auto;
+  padding: 8px 12px;
+  border: 1.5px solid #b9c5c1;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}

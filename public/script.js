@@ -14,6 +14,29 @@ const breakdownEl = document.getElementById("breakdown");
 const shareEl = document.getElementById("share");
 const legendEl = document.getElementById("legend");
 const toastEl = document.getElementById("toast");
+const dateInput = document.getElementById("date");
+const monthInput = document.getElementById("month");
+
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
+
+function todayString() {
+  const d = new Date();
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  const parts = value.split("-").map(Number);
+  return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+dateInput.value = todayString();
+monthInput.value = todayString().slice(0, 7);
 
 let expenses = [];
 let editingId = null;   // id ของรายการที่กำลังแก้ไข (null = ไม่ได้แก้)
@@ -42,7 +65,10 @@ function showError(message, error) {
 
 async function loadExpenses() {
   try {
-    const response = await apiFetch(API_URL);
+    if (!monthInput.value) monthInput.value = todayString().slice(0, 7);
+    const response = await apiFetch(
+      API_URL + "?month=" + encodeURIComponent(monthInput.value)
+    );
     if (!response.ok) throw new Error("สถานะ " + response.status);
     expenses = await response.json();
     render();
@@ -57,6 +83,7 @@ function startEdit(id) {
 
   titleInput.value = item.title;
   amountInput.value = item.amount;
+  dateInput.value = item.date;
   form.elements.category.value = item.category;
 
   editingId = id;
@@ -75,6 +102,7 @@ function resetEditing() {
   submitButton.textContent = "เพิ่มรายการ";
   cancelButton.hidden = true;
   form.reset();
+  dateInput.value = todayString();
 }
 
 async function deleteExpense(id) {
@@ -105,10 +133,15 @@ function buildItem(item) {
   const name = document.createElement("span");
   name.className = "name";
   name.textContent = item.title;
+  const meta = document.createElement("div");
+  meta.className = "meta";
   const cat = document.createElement("span");
   cat.className = "cat";
   cat.textContent = item.category;
-  main.append(name, cat);
+  const when = document.createElement("span");
+  when.textContent = formatDate(item.date);
+  meta.append(cat, when);
+  main.append(name, meta);
 
   const side = document.createElement("div");
   side.className = "side";
@@ -192,6 +225,7 @@ form.addEventListener("submit", async function (event) {
     title: titleInput.value.trim(),
     category: form.elements.category.value,
     amount: Number(amountInput.value),
+    date: dateInput.value,
   };
 
   const isEditing = editingId !== null;
@@ -207,6 +241,7 @@ form.addEventListener("submit", async function (event) {
     const saved = await response.json();
 
     highlightId = saved.id;
+    monthInput.value = data.date.slice(0, 7);
     resetEditing();
     await loadExpenses();
     showToast(isEditing ? "บันทึกการแก้ไขแล้ว" : "เพิ่มรายการแล้ว");
@@ -221,6 +256,7 @@ cancelButton.addEventListener("click", function () {
 });
 
 // ---------- ล็อกอิน / สมัครสมาชิก ----------
+monthInput.addEventListener("change", loadExpenses);
 const authView = document.getElementById("auth-view");
 const appView = document.getElementById("app-view");
 const authForm = document.getElementById("auth-form");
