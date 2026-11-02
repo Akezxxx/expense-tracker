@@ -1,7 +1,26 @@
-// เก็บรายการทั้งหมดไว้ใน array
-const expenses = [];
+const STORAGE_KEY = "expenses";
 
-// ดึง element จากหน้าเว็บมาเก็บในตัวแปร (ใช้ id ที่ตั้งไว้ใน HTML)
+// อ่านรายการที่เคยบันทึกไว้ในเบราว์เซอร์ ถ้าไม่มีให้เริ่มจากว่าง
+function loadExpenses() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+// บันทึกรายการทั้งหมดลงเบราว์เซอร์
+function saveExpenses() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+  } catch (error) {
+    console.error("บันทึกข้อมูลไม่สำเร็จ", error);
+  }
+}
+
+const expenses = loadExpenses();
+
 const form = document.getElementById("expense-form");
 const titleInput = document.getElementById("title");
 const amountInput = document.getElementById("amount");
@@ -29,7 +48,8 @@ function render() {
     const deleteButton = document.createElement("button");
     deleteButton.textContent = "ลบ";
     deleteButton.addEventListener("click", function () {
-      expenses.splice(index, 1); // ลบรายการที่ตำแหน่งนี้ออกจาก array
+      expenses.splice(index, 1);
+      saveExpenses();
       render();
     });
     actionCell.appendChild(deleteButton);
@@ -43,9 +63,8 @@ function render() {
   totalSpan.textContent = total.toLocaleString("th-TH");
 }
 
-// ทำงานเมื่อกดปุ่ม "เพิ่ม"
 form.addEventListener("submit", function (event) {
-  event.preventDefault(); // กันไม่ให้หน้าเว็บรีโหลด
+  event.preventDefault();
 
   expenses.push({
     title: titleInput.value,
@@ -53,6 +72,10 @@ form.addEventListener("submit", function (event) {
     amount: Number(amountInput.value),
   });
 
+  saveExpenses();
   render();
-  form.reset(); // ล้างช่องกรอก
+  form.reset();
 });
+
+// วาดตารางครั้งแรกตอนเปิดหน้า (แสดงรายการที่เคยบันทึกไว้)
+render();
