@@ -2,7 +2,7 @@ const express = require("express");
 const crypto = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const db = new DatabaseSync("expenses.db");
+const db = new DatabaseSync(process.env.DB_PATH || "expenses.db");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -395,7 +395,12 @@ app.get("/api/export", requireLogin, (req, res) => {
   res.send("\uFEFF" + lines.join("\r\n") + "\r\n");
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`เซิร์ฟเวอร์ทำงานที่ http://localhost:${PORT}`);
-});
+module.exports = { app };
+
+// เปิดเซิร์ฟเวอร์เฉพาะตอนสั่ง node server.js ตรงๆ (ตอนเทสต์จะไม่เปิด)
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`เซิร์ฟเวอร์ทำงานที่ http://localhost:${PORT}`);
+  });
+}
