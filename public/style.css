@@ -546,3 +546,38 @@ input[type="month"] {
   padding: 6px 14px;
   border: 1.5px solid var(--bay);
 }
+
+/* ---------- บัญชีของฉัน ---------- */
+.account {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid rgb(255 255 255 / 0.25);
+}
+
+.account summary { cursor: pointer; font-weight: 500; }
+
+.account-form { margin-top: 20px; }
+
+.account-form h3 {
+  margin: 0 0 8px;
+  font-family: "Mitr", sans-serif;
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+.account-form p { margin: 0 0 12px; font-size: 0.9rem; opacity: 0.85; }
+
+.danger-zone {
+  padding-top: 16px;
+  border-top: 1px dashed rgb(255 255 255 / 0.3);
+}
+
+.danger-button {
+  padding: 11px 18px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--chili);
+  color: #fff;
+  font-weight: 600;
+}
+.danger-button:hover { background: color-mix(in srgb, var(--chili) 85%, black); }

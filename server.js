@@ -47,8 +47,18 @@ if (!expenseColumns.some((column) => column.name === "spent_on")) {
   );
 }
 
-// ลบบัตรผ่านที่หมดอายุทิ้งตอนเริ่มเซิร์ฟเวอร์
-db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(Date.now());
+// ลบบัตรผ่านที่หมดอายุ: ตอนเริ่มเซิร์ฟเวอร์ และทุกชั่วโมงระหว่างที่รันอยู่
+function cleanupSessions() {
+  db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(Date.now());
+}
+cleanupSessions();
+setInterval(cleanupSessions, 60 * 60 * 1000).unref();
+
+// ---------- ค่ากำหนดของแอป ----------
+const CATEGORIES = ["อาหาร", "เดินทาง", "ช้อปปิ้ง", "อื่นๆ"];
+const MAX_TITLE_LENGTH = 80;
+const MAX_AMOUNT = 100000000;
+const MAX_EXPENSES = Number(process.env.MAX_EXPENSES) || 5000;
 
 // ---------- รหัสผ่าน ----------
 function hashPassword(password) {
@@ -183,6 +193,18 @@ app.use("/api", (req, res, next) => {
 app.use(express.json({ limit: "10kb" }));
 app.use(express.static("public"));
 
+// ให้โฮสต์ใช้ตรวจว่าแอปยังทำงานอยู่
+app.get("/healthz", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    db.prepare("SELECT 1").get();
+    res.type("text/plain").send("ok");
+  } catch (error) {
+    console.error(error);
+    res.status(503).type("text/plain").send("unavailable");
+  }
+});
+
 // จำกัดจำนวนคำขอต่อ IP ในช่วงเวลาหนึ่ง (เก็บในหน่วยความจำ รีสตาร์ตแล้วเริ่มนับใหม่)
 function rateLimit({ windowMs, max, message }) {
   const hits = new Map();
@@ -221,6 +243,12 @@ const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: Number(process.env.REGISTER_MAX) || 10,
   message: "สมัครสมาชิกบ่อยเกินไป รอสักครู่แล้วลองใหม่",
+});
+
+const accountLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.ACCOUNT_MAX) || 10,
+  message: "ลองบ่อยเกินไป รอสักครู่แล้วลองใหม่",
 });
 
 const CREDENTIAL_ERROR =
@@ -291,6 +319,72 @@ app.get("/api/me", requireLogin, (req, res) => {
   res.json({ username: req.user.username });
 });
 
+// เปลี่ยนรหัสผ่าน: บัตรผ่านเก่าทุกใบใช้ไม่ได้ แล้วออกบัตรใหม่ให้เครื่องนี้
+app.post("/api/change-password", requireLogin, accountLimiter, (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+    return res.status(400).json({ error: "กรอกรหัสผ่านปัจจุบันและรหัสผ่านใหม่" });
+  }
+  if (newPassword.length < 8 || newPassword.length > 100) {
+    return res.status(400).json({ error: "รหัสผ่านใหม่ต้องยาว 8-100 ตัวอักษร" });
+  }
+
+  const row = db
+    .prepare("SELECT password_hash FROM users WHERE id = ?")
+    .get(req.user.id);
+  if (!row || !verifyPassword(currentPassword, row.password_hash)) {
+    return res.status(400).json({ error: "รหัสผ่านปัจจุบันไม่ถูกต้อง" });
+  }
+
+  db.exec("BEGIN");
+  try {
+    db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(
+      hashPassword(newPassword),
+      req.user.id
+    );
+    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(req.user.id);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    console.error(error);
+    return res.status(500).json({ error: "เซิร์ฟเวอร์ขัดข้อง ลองอีกครั้ง" });
+  }
+
+  createSession(res, req.user.id);
+  res.status(204).end();
+});
+
+// ลบบัญชีและข้อมูลทั้งหมดของผู้ใช้ (ต้องยืนยันด้วยรหัสผ่าน)
+app.delete("/api/account", requireLogin, accountLimiter, (req, res) => {
+  const { password } = req.body || {};
+  if (typeof password !== "string") {
+    return res.status(400).json({ error: "กรอกรหัสผ่านเพื่อยืนยัน" });
+  }
+
+  const row = db
+    .prepare("SELECT password_hash FROM users WHERE id = ?")
+    .get(req.user.id);
+  if (!row || !verifyPassword(password, row.password_hash)) {
+    return res.status(400).json({ error: "รหัสผ่านไม่ถูกต้อง" });
+  }
+
+  db.exec("BEGIN");
+  try {
+    db.prepare("DELETE FROM expenses WHERE user_id = ?").run(req.user.id);
+    db.prepare("DELETE FROM budgets WHERE user_id = ?").run(req.user.id);
+    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(req.user.id);
+    db.prepare("DELETE FROM users WHERE id = ?").run(req.user.id);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    console.error(error);
+    return res.status(500).json({ error: "เซิร์ฟเวอร์ขัดข้อง ลองอีกครั้ง" });
+  }
+
+  res.setHeader("Set-Cookie", cookieString("", 0));
+  res.status(204).end();
+});
+
 // ---------- รายการค่าใช้จ่าย (เห็นเฉพาะของตัวเอง) ----------
 function isValidDate(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -315,6 +409,51 @@ function isValid(body) {
   );
 }
 
+// ตรวจและทำความสะอาดข้อมูลรายการ ก่อนเข้า route เพิ่ม/แก้ไข
+function cleanExpense(req, res, next) {
+  const body = req.body || {};
+  const reject = (message) => res.status(400).json({ error: message });
+
+  if (typeof body.title !== "string") return reject("ข้อมูลไม่ถูกต้อง");
+  const title = body.title.trim();
+  if (title === "" || title.length > MAX_TITLE_LENGTH) {
+    return reject(`ชื่อรายการต้องยาว 1-${MAX_TITLE_LENGTH} ตัวอักษร`);
+  }
+
+  if (!CATEGORIES.includes(body.category)) return reject("หมวดหมู่ไม่ถูกต้อง");
+
+  if (
+    typeof body.amount !== "number" ||
+    !Number.isFinite(body.amount) ||
+    body.amount <= 0 ||
+    body.amount > MAX_AMOUNT
+  ) {
+    return reject("จำนวนเงินต้องมากกว่า 0 และไม่เกิน 100,000,000");
+  }
+  const amount = Math.round(body.amount * 100) / 100; // เก็บทศนิยมไม่เกิน 2 ตำแหน่ง
+  if (amount <= 0) return reject("จำนวนเงินน้อยเกินไป");
+
+  if (!isValidDate(body.date)) return reject("วันที่ไม่ถูกต้อง");
+  const year = Number(body.date.slice(0, 4));
+  if (year < 2000 || year > 2100) return reject("วันที่ต้องอยู่ระหว่างปี 2000-2100");
+
+  req.body = { title, category: body.category, amount, date: body.date };
+  next();
+}
+
+// จำกัดจำนวนรายการต่อผู้ใช้
+function expenseLimit(req, res, next) {
+  const { n } = db
+    .prepare("SELECT COUNT(*) AS n FROM expenses WHERE user_id = ?")
+    .get(req.user.id);
+  if (n >= MAX_EXPENSES) {
+    return res
+      .status(409)
+      .json({ error: `เก็บรายการได้สูงสุด ${MAX_EXPENSES} รายการ` });
+  }
+  next();
+}
+
 app.get("/api/expenses", requireLogin, (req, res) => {
   const month = req.query.month;
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(month))) {
@@ -331,7 +470,7 @@ app.get("/api/expenses", requireLogin, (req, res) => {
   res.json(rows);
 });
 
-app.post("/api/expenses", requireLogin, (req, res) => {
+app.post("/api/expenses", requireLogin, cleanExpense, expenseLimit, (req, res) => {
   if (!isValid(req.body)) {
     return res.status(400).json({ error: "ข้อมูลไม่ถูกต้อง" });
   }
@@ -346,7 +485,7 @@ app.post("/api/expenses", requireLogin, (req, res) => {
     .json({ id: Number(result.lastInsertRowid), title, category, amount, date });
 });
 
-app.put("/api/expenses/:id", requireLogin, (req, res) => {
+app.put("/api/expenses/:id", requireLogin, cleanExpense, (req, res) => {
   if (!isValid(req.body)) {
     return res.status(400).json({ error: "ข้อมูลไม่ถูกต้อง" });
   }
@@ -382,7 +521,7 @@ db.exec(`
   )
 `);
 
-const BUDGET_CATEGORIES = ["อาหาร", "เดินทาง", "ช้อปปิ้ง", "อื่นๆ"];
+const BUDGET_CATEGORIES = CATEGORIES;
 
 app.get("/api/budgets", requireLogin, (req, res) => {
   const rows = db
@@ -487,7 +626,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "เซิร์ฟเวอร์ขัดข้อง ลองอีกครั้ง" });
 });
 
-module.exports = { app };
+module.exports = { app, db, cleanupSessions };
 
 // เปิดเซิร์ฟเวอร์เฉพาะตอนสั่ง node server.js ตรงๆ (ตอนเทสต์จะไม่เปิด)
 if (require.main === module) {

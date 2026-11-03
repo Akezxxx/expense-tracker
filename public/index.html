@@ -51,7 +51,7 @@
 
         <label class="field">
           <span>จำนวนเงิน (บาท)</span>
-          <input type="number" id="amount" placeholder="0" min="0" step="any" inputmode="decimal" required>
+          <input type="number" id="amount" placeholder="0" min="0.01" max="100000000" step="any" inputmode="decimal" required>
         </label>
 
         <label class="field">
@@ -81,6 +81,34 @@
           <button type="submit" id="submit-button" class="primary">เพิ่มรายการ</button>
           <button type="button" id="cancel-button" class="secondary" hidden>ยกเลิก</button>
         </div>
+              <details class="account" id="account">
+        <summary>บัญชีของฉัน</summary>
+
+        <form id="password-form" class="account-form">
+          <h3>เปลี่ยนรหัสผ่าน</h3>
+          <label class="field">
+            <span>รหัสผ่านปัจจุบัน</span>
+            <input type="password" id="current-password" autocomplete="current-password" required>
+          </label>
+          <label class="field">
+            <span>รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)</span>
+            <input type="password" id="new-password" autocomplete="new-password" minlength="8" required>
+          </label>
+          <button type="submit" class="secondary">เปลี่ยนรหัสผ่าน</button>
+        </form>
+
+        <form id="delete-form" class="account-form danger-zone">
+          <h3>ลบบัญชี</h3>
+          <p>ลบบัญชีและรายการทั้งหมดถาวร กู้คืนไม่ได้</p>
+          <label class="field">
+            <span>ใส่รหัสผ่านเพื่อยืนยัน</span>
+            <input type="password" id="delete-password" autocomplete="current-password" required>
+          </label>
+          <button type="submit" class="danger-button">ลบบัญชีถาวร</button>
+        </form>
+
+        <p id="account-error" class="auth-error" role="alert"></p>
+      </details>
       </form>
     </section>
 
@@ -133,5 +161,6 @@
 
   <script src="script.js"></script>
   <script src="budget.js"></script>
+  <script src="account.js"></script>
 </body>
 </html>
